@@ -1,6 +1,0 @@
-* text=auto eol=lf
-*.woff2 binary
-*.svg text
-# Catalogues générés : pas de diff ligne à ligne, comptés hors stats de langage
-data/*.js -diff linguist-generated
-vendor/** linguist-vendored
