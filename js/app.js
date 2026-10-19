@@ -288,6 +288,7 @@
     cmdCtrl?.abort();
     cmdAll = cmdResults = [];
     cmdFilters = {};
+    cmdMore.clear();
     cmdStale = cmdPendingEnter = false;
     cmdQuery = (v.q || '').trim();
     selected = new Set();
@@ -387,8 +388,11 @@
       const v = String(valOf(c, it, key) ?? '').trim();
       if (v) counts.set(v, (counts.get(v) || 0) + 1);
     }
-    return [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'fr'));
+    return [...counts].sort(byLabel);
   }
+
+  // pastilles de filtre : ordre alphabétique, nombres dans l'ordre naturel (2 < 10, 2002 < 2026)
+  const byLabel = (a, b) => a[0].localeCompare(b[0], 'fr', { numeric: true, sensitivity: 'base' });
 
   // Libellés de tri explicites (le sens est dans le libellé, pas de bouton séparé)
   function sortOptions(c) {
@@ -903,7 +907,8 @@
   // ------------------------------------------------------------------ barre de commande
   let cmdResults = [], cmdActive = 0, cmdCtrl = null, cmdQuery = '';
   let cmdStale = false, cmdPendingEnter = false; // résultats en cours de rafraîchissement
-  let cmdAll = [], cmdFilters = {}; // tous les résultats du catalogue + filtres (pastilles) actifs
+  let cmdAll = [], cmdFilters = {}, cmdMore = new Set(); // cmdMore : filtres dépliés (« +N »)
+  let _unused; // tous les résultats du catalogue + filtres (pastilles) actifs
 
   // valeur(s) d'un résultat pour une pastille (une carte peut exister en plusieurs langues)
   const resultFacet = (r, k) => [(r.facets || r.values || {})[k]].flat().filter((v) => v != null && v !== '');
@@ -927,11 +932,14 @@
       cmdAll.forEach((r) => { if (passFilters(r, k)) resultFacet(r, k).forEach((v) => counts.set(v, (counts.get(v) || 0) + 1)); });
       sel.forEach((v) => { if (!counts.has(v)) counts.set(v, 0); });
       if (counts.size < 2 && !sel.size) return '';
-      const vals = [...counts].sort((a, b) => sel.has(b[0]) - sel.has(a[0]) || b[1] - a[1]).slice(0, 8);
+      // replié : les 12 plus fréquentes (+ celles cochées), affichées par ordre alphabétique
+      const all = [...counts].sort((a, b) => sel.has(b[0]) - sel.has(a[0]) || b[1] - a[1]);
+      const LIMIT = 12, hidden = cmdMore.has(k) ? 0 : Math.max(0, all.length - LIMIT);
+      const vals = all.slice(0, all.length - hidden).sort(byLabel);
       return `
         <div class="flex items-start gap-2 px-2.5 py-1">
           <span class="w-20 shrink-0 pt-1 text-[11px] text-muted">${esc(label)}</span>
-          <div class="flex flex-wrap gap-1">${vals.map(([v, n]) => `<button type="button" class="chip px-2 py-0.5 text-xs" data-on="${sel.has(v) ? 1 : 0}" data-rf="${esc(k)}" data-rv="${esc(v)}">${esc(v)} <span class="n">${n}</span></button>`).join('')}</div>
+          <div class="flex flex-wrap gap-1">${vals.map(([v, n]) => `<button type="button" class="chip px-2 py-0.5 text-xs" data-on="${sel.has(v) ? 1 : 0}" data-rf="${esc(k)}" data-rv="${esc(v)}">${esc(v)} <span class="n">${n}</span></button>`).join('')}${hidden ? `<button type="button" class="chip border-dashed px-2 py-0.5 text-xs text-muted" data-rf-more="${esc(k)}">+${hidden}</button>` : cmdMore.has(k) && all.length > LIMIT ? `<button type="button" class="chip border-dashed px-2 py-0.5 text-xs text-muted" data-rf-more="${esc(k)}">moins</button>` : ''}</div>
         </div>`;
     }).join('');
   }
@@ -1044,6 +1052,7 @@
     cmdQuery = '';
     cmdAll = cmdResults = [];
     cmdFilters = {};
+    cmdMore.clear();
     view(c).q = '';
     const q = $('#q');
     if (q) { q.value = ''; q.blur(); }
@@ -1346,6 +1355,15 @@
     }
 
     if (t.closest('#q-clear')) { resetQuery(); return; }
+
+    const more = t.closest('[data-rf-more]');
+    if (more) {
+      const k = more.dataset.rfMore;
+      cmdMore.has(k) ? cmdMore.delete(k) : cmdMore.add(k);
+      cmdRender('done');
+      $('#q')?.focus();
+      return;
+    }
 
     const rf = t.closest('[data-rf]');
     if (rf || t.closest('[data-rf-clear]')) {

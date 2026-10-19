@@ -15,9 +15,15 @@
   function price(card, variante) {
     const cm = card.pricing && card.pricing.cardmarket;
     if (!cm) return null;
-    const holo = /holo|reverse/i.test(variante || '') || (card.variants && !card.variants.normal && card.variants.holo);
-    const p = holo ? (cm['trend-holo'] || cm['avg-holo'] || cm.trend) : (cm.trend || cm.avg);
-    return p || null; // 0 = pas de cote connue
+    // les champs « -holo » de Cardmarket désignent la version reverse ; une carte holo de base
+    // (ex, illustration rare…) a sa cote dans les champs normaux
+    const sfx = /reverse/i.test(variante || '') && (cm['avg7-holo'] || cm['trend-holo'] || cm['avg-holo']) ? '-holo' : '';
+    const f = (k) => cm[k + sfx] || null;
+    // moyenne des ventes sur 7 jours : la « tendance » Cardmarket réagit avec retard et tombe parfois
+    // sous l'offre la moins chère (extensions récentes) ; on ne descend jamais sous ce prix plancher
+    const p = f('avg7') || f('avg1') || f('trend') || f('avg') || f('avg30');
+    const low = f('low');
+    return p ? Math.round(Math.max(p, low && low < p * 3 ? low : 0) * 100) / 100 : null; // 0 = pas de cote connue
   }
 
   function defaultVariant(card) {
@@ -85,6 +91,28 @@
   const keys = (s) => MLC.fuzzy.tokens(s).map(MLC.fuzzy.phon);
   const matches = (name, qk) => { const nk = keys(name); return qk.every((k) => nk.some((n) => n.startsWith(k))); };
 
+  // « mewtwo 30 », « mewtwo anniversaire », « pikachu 2026 », « mewtwo 151 » : les mots qui ne sont
+  // pas dans le nom sont cherchés dans l'extension, la série, l'année, le numéro et la rareté
+  const words = (s) => MLC.util.norm(s).split(/[^a-z0-9]+/).filter(Boolean);
+  const ctxCache = new Map();
+  function context(c) {
+    let ctx = ctxCache.get(c.id);
+    if (!ctx) ctxCache.set(c.id, (ctx = new Set(words(`${c.setName} ${c.serie} ${c.setId} ${c.year} ${c.rarity} ${c.category}`))));
+    return ctx;
+  }
+  function contextScore(c, terms) {
+    let n = 0;
+    for (const t of terms) {
+      const num = /^\d+$/.test(t);
+      if (num && String(c.localId).replace(/^0+/, '') === t.replace(/^0+/, '')) { n++; continue; }
+      for (const w of context(c)) {
+        // 30 → « 30ᵉ », « 30th » mais pas « 300 » ; mots : début de mot, au moins 2 lettres
+        if (num ? w === t || (w.startsWith(t) && !/\d/.test(w[t.length])) : t.length >= 2 && w.startsWith(t)) { n++; break; }
+      }
+    }
+    return n;
+  }
+
   function fromCard(c, q) {
     const langs = Object.keys(c.per);
     const imgLang = ['fr', ...langs].find((l) => c.per[l]?.image);
@@ -150,6 +178,19 @@
             <div class="mt-2 flex items-center justify-between">${h.stepper(it)}<span class="text-[11px] font-medium uppercase tracking-wide text-muted">${h.esc([it.variante, it.langue].filter(Boolean).join(' · '))}</span></div>
           </div>`;
       },
+      // fiche : recherches pré-remplies (Cardmarket nomme les cartes en anglais)
+      links(it) {
+        if (!it.nom) return [];
+        if (!tcg) loadCards().catch(() => {}); // nom anglais disponible à la prochaine ouverture
+        const card = tcg && it.tcgdex_id && tcg.cards.find((c) => c.id === it.tcgdex_id);
+        const en = card?.per.en?.name || it.nom;
+        const num = String(it.numero || '').split('/')[0];
+        const lang = { FR: 'français', EN: 'anglais', DE: 'allemand', IT: 'italien', ES: 'espagnol', PT: 'portugais', JP: 'japonais' }[String(it.langue || '').toUpperCase()];
+        return [
+          { label: 'Cardmarket', hint: lang ? `filtrer « ${lang} » sur la page` : 'prix par langue et état', url: `https://www.cardmarket.com/fr/Pokemon/Products/Search?searchString=${encodeURIComponent(en)}` },
+          { label: 'Google', hint: 'page exacte de la carte', url: `https://www.google.com/search?q=${encodeURIComponent(['site:cardmarket.com', en, it.extension, num].filter(Boolean).join(' '))}` },
+        ];
+      },
     },
     columns: [
       { key: 'image', label: 'Image', type: 'image', priority: 2 },
@@ -181,11 +222,17 @@
           const byId = local.cards.find((c) => c.id.toLowerCase() === q.toLowerCase());
           if (byId) return [fromCard(byId, q)];
           // cartes illustrées et récentes d'abord, à pertinence égale
-          const hits = MLC.fuzzy.search(local.index, q, {
-            limit: 400,
-            boost: (id) => (Object.values(local.cards[id].per).some((p) => p.image) ? 1.1 : 1) * (1 + (Number(local.cards[id].year) || 1999) / 1e6),
-          });
-          return hits.map((h) => fromCard(local.cards[h.id], q));
+          const boost = (id) => (Object.values(local.cards[id].per).some((p) => p.image) ? 1.1 : 1) * (1 + (Number(local.cards[id].year) || 1999) / 1e6);
+          // mots absents de tous les noms trouvés → critères d'extension / année / numéro
+          const terms = words(q);
+          let hits = MLC.fuzzy.search(local.index, q, { limit: 3000, boost });
+          const extra = terms.filter((t) => /^\d+$/.test(t)
+            || !hits.some((h) => matches(Object.values(local.cards[h.id].per).map((p) => p.name).join(' '), keys(t))));
+          if (extra.length) {
+            hits = hits.map((h) => ({ ...h, ctx: contextScore(local.cards[h.id], extra) }))
+              .sort((a, b) => b.ctx - a.ctx || b.score - a.score);
+          }
+          return hits.slice(0, 400).map((h) => fromCard(local.cards[h.id], q));
         }
         // index indisponible : recherche en ligne (français, extension seule)
         const setMap = await sets();
