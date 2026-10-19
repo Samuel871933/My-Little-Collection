@@ -1,0 +1,26 @@
+# Sources brutes des catalogues (seuls les data/*.js générés sont versionnés)
+*.csv
+*.zip
+*.json.gz
+
+# Python (tools/)
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Exports / sauvegardes de collection faits en local
+mlc-*.json
+*-backup*.json
+
+# Éditeurs et OS
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
+Thumbs.db
+.directory
+
+# Claude Code (réglages locaux)
+.claude/settings.local.json

@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="fr" data-theme="home">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>My Little Collection</title>
+  <meta name="description" content="Inventoriez vos vins, cartes Pokémon ou n'importe quelle collection. Sans compte, sans serveur, sans collecte de données : tout reste dans votre navigateur et s'exporte en CSV.">
+  <link rel="icon" type="image/svg+xml" href="img/favicon.svg">
+  <!-- police et Tailwind livrés avec le site : aucune requête vers un service tiers au chargement -->
+  <link rel="stylesheet" href="vendor/fonts/fonts.css">
+  <script src="vendor/tailwindcss-browser-4.1.11.js"></script>
+  <style type="text/tailwindcss">
+    @theme inline {
+      --color-paper: var(--paper);
+      --color-surface: var(--surface);
+      --color-ink: var(--ink);
+      --color-muted: var(--muted);
+      --color-line: var(--line);
+      --color-accent: var(--accent);
+      --color-accent-ink: var(--accent-ink);
+      --color-gold: var(--gold);
+      --font-display: var(--display);
+      --font-sans: "Roboto", ui-sans-serif, system-ui, sans-serif;
+      --font-mono: "Roboto Mono", ui-monospace, monospace;
+    }
+
+    /* ---- Thèmes : un univers par type de collection -------------------- */
+    [data-theme=home]    { --paper:#f4f0e8; --surface:#fbf9f4; --ink:#1c1915; --muted:#6f675c; --line:#e0d7c8; --accent:#c4462b; --accent-ink:#fff8f2; --gold:#b98a2f; --display:"Roboto", ui-sans-serif, system-ui, sans-serif; }
+    [data-theme=cellar]  { --paper:#f2eadc; --surface:#fbf7ef; --ink:#2b1418; --muted:#7b6457; --line:#e0d0b9; --accent:#7a1f2b; --accent-ink:#fbf2e6; --gold:#a8792b; --display:"Roboto", ui-sans-serif, system-ui, sans-serif; }
+    [data-theme=tcg]     { --paper:#edf1f8; --surface:#ffffff; --ink:#111a3a; --muted:#5a6787; --line:#d6deed; --accent:#ffcb05; --accent-ink:#111a3a; --gold:#2a75bb; --display:"Roboto", ui-sans-serif, system-ui, sans-serif; }
+    [data-theme=archive] { --paper:#eeeee8; --surface:#fafaf6; --ink:#161616; --muted:#67675f; --line:#d8d8cf; --accent:#2346c6; --accent-ink:#ffffff; --gold:#8a6d1f; --display:"Roboto", ui-sans-serif, system-ui, sans-serif; }
+    @media (prefers-color-scheme: dark) {
+      [data-theme=home]    { --paper:#141210; --surface:#1d1a17; --ink:#efe8dc; --muted:#a39886; --line:#332e27; --accent:#e2603f; --accent-ink:#1a0d08; --gold:#d6a84f; }
+      [data-theme=cellar]  { --paper:#150b0d; --surface:#1f1215; --ink:#f1e5d4; --muted:#b09a88; --line:#3a2427; --accent:#c4505d; --accent-ink:#1a0a0c; --gold:#d6a84f; }
+      [data-theme=tcg]     { --paper:#0a1022; --surface:#121a33; --ink:#e9eefb; --muted:#8e9bbb; --line:#25304f; --accent:#ffcb05; --accent-ink:#111a3a; --gold:#5aa2e6; }
+      [data-theme=archive] { --paper:#121212; --surface:#1b1b1a; --ink:#ececE6; --muted:#9b9b92; --line:#2e2e2b; --accent:#7d97ff; --accent-ink:#0b1030; --gold:#cfae5a; }
+    }
+
+    @keyframes fadein { from { opacity: 0; } }
+
+    @layer base {
+      html { @apply bg-paper text-ink; }
+      body { @apply min-h-dvh bg-paper font-sans text-ink antialiased transition-colors duration-500; }
+      ::selection { @apply bg-accent text-accent-ink; }
+      input, select, textarea { @apply rounded-md border border-line bg-surface px-3 py-2 text-sm text-ink outline-none transition placeholder:text-muted/70 focus:border-accent/50 focus:ring-2 focus:ring-accent/10; }
+      input[type=checkbox], input[type=radio] { @apply size-4 p-0 accent-[var(--accent)]; }
+      dialog { @apply m-auto max-h-[88vh] w-[min(560px,calc(100vw-2rem))] overflow-auto rounded-xl border border-line bg-surface p-0 text-ink shadow-2xl; }
+      dialog.wide { @apply w-[min(860px,calc(100vw-2rem))]; }
+      dialog::backdrop { @apply bg-black/45 backdrop-blur-[2px]; }
+      kbd { @apply rounded border border-line bg-paper px-1.5 py-0.5 font-mono text-[11px] text-muted; }
+      code { @apply rounded bg-ink/5 px-1 font-mono text-[0.85em]; }
+    }
+
+    @layer components {
+      .btn { @apply inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-md border border-line bg-surface px-3 py-2 text-sm font-medium text-ink transition hover:border-ink/30 active:translate-y-px disabled:pointer-events-none disabled:opacity-40; }
+      .btn-primary { @apply border-transparent bg-ink text-paper hover:bg-ink/85 hover:border-transparent; }
+      .btn-accent { @apply border-transparent bg-accent text-accent-ink hover:brightness-110 hover:border-transparent; }
+      .btn-quiet { @apply border-transparent bg-transparent text-muted hover:bg-ink/5 hover:text-ink; }
+      .btn-icon { @apply size-9 p-0; }
+      .eyebrow { @apply text-[11px] font-medium uppercase tracking-wider text-muted; }
+
+      .chip { @apply inline-flex shrink-0 cursor-pointer select-none items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1.5 text-[13px] text-ink transition hover:border-ink/30; }
+      .chip[data-on="1"] { @apply border-ink bg-ink text-paper; }
+      .chip .n { @apply font-mono text-[11px] text-muted; }
+      .chip[data-on="1"] .n { @apply text-paper/60; }
+
+      details.pop { @apply relative; }
+      details.pop > summary { @apply list-none; }
+      details.pop > summary::-webkit-details-marker { display: none; }
+      .pop-panel { @apply absolute z-30 mt-2 min-w-56 overflow-hidden rounded-lg border border-line bg-surface p-1.5 shadow-[0_18px_50px_-20px_rgb(0_0_0/.45)]; }
+      .pop-item { @apply flex w-full cursor-pointer items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-sm text-ink hover:bg-ink/5; }
+      .pop-item.danger { @apply text-accent; }
+
+      .stepper { @apply inline-flex items-center rounded-full border border-line bg-surface text-sm; }
+      .stepper button { @apply grid size-7 cursor-pointer place-items-center rounded-full text-muted transition hover:bg-ink/5 hover:text-ink; }
+      .stepper span { @apply min-w-5 text-center font-semibold tabular-nums; }
+
+      .badge { @apply inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-medium; }
+      .badge::before { content: ""; @apply size-1.5 rounded-full bg-current; }
+      .badge.s-en_garde { @apply bg-emerald-600/10 text-emerald-700 dark:text-emerald-300; }
+      .badge.s-a_boire_bientot { @apply bg-amber-500/15 text-amber-700 dark:text-amber-300; }
+      .badge.s-a_boire_cette_annee { @apply bg-orange-500/15 text-orange-700 dark:text-orange-300; }
+      .badge.s-depasse { @apply bg-red-600/10 text-red-700 dark:text-red-300; }
+
+      .result { @apply flex w-full cursor-pointer items-center gap-3 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-ink/[0.045]; }
+      .result .thumb img { @apply animate-[fadein_.3s_ease-out]; }
+      .result[data-active="1"] { @apply bg-ink/[0.06]; }
+      .result .thumb { @apply grid size-11 shrink-0 place-items-center overflow-hidden rounded-md bg-paper; }
+      .result .thumb img { @apply h-full w-full object-contain; }
+
+      .field { @apply flex flex-col gap-1.5; }
+      .field > span { @apply text-[11px] font-medium uppercase tracking-[0.12em] text-muted; }
+
+      .holo::after { content: ""; @apply pointer-events-none absolute inset-0 opacity-0 transition duration-500; background: linear-gradient(115deg, transparent 25%, rgb(255 255 255 / .55) 42%, rgb(255 80 220 / .18) 50%, rgb(80 230 255 / .18) 56%, transparent 72%); background-size: 260% 260%; background-position: 100% 100%; mix-blend-mode: screen; }
+      .group:hover .holo::after { @apply opacity-100; background-position: 0 0; }
+
+      /* Tableau */
+      .tbl { @apply w-full border-separate border-spacing-0 text-sm; }
+      .tbl thead th { @apply sticky z-10 bg-surface px-3 text-left align-bottom font-medium leading-tight text-muted @5xl:px-4; }
+      .tbl thead tr:first-child th { @apply top-0 pt-3 pb-2 text-xs; }
+      .tbl thead tr.filters th { @apply top-[var(--th-h,2.5rem)] border-b border-line pt-0 pb-2.5 align-middle font-normal; }
+      .tbl thead tr.filters input { @apply h-7 w-full min-w-0 rounded border-transparent bg-paper/80 px-2 py-0 text-xs placeholder:text-muted/55 hover:border-line focus:border-accent/50 focus:bg-surface focus:ring-0; }
+      .tbl th.sortable { @apply cursor-pointer select-none transition hover:text-ink; }
+      .tbl th .th-in { @apply inline-flex items-center gap-1; }
+      .tbl th.num .th-in { @apply flex-row-reverse text-right; }
+      .tbl th .sort-ic { @apply shrink-0 text-muted/45; }
+      .tbl th[data-active="1"] { @apply text-ink; }
+      .tbl th[data-active="1"] .sort-ic { @apply text-accent; }
+      .tbl tbody tr { @apply cursor-pointer transition-colors hover:bg-ink/[0.025] focus-within:bg-ink/[0.025]; }
+      .tbl tbody td { @apply h-12 whitespace-nowrap border-b border-line/60 px-3 py-2 align-middle @5xl:px-4; }
+      .tbl tbody tr:last-child td { @apply border-b-0; }
+      .tbl tbody td.name { @apply min-w-40 max-w-80 whitespace-normal font-medium leading-snug; }
+      .tbl td.name .sub { @apply flex flex-wrap gap-x-2.5 text-xs font-normal text-muted; }
+      .tbl td.name .sub > span { display: none; }
+      .tbl .num { @apply text-right tabular-nums; }
+      /* cellules éditables : du texte au repos, un champ au survol et à la saisie */
+      .tbl input.cell { @apply -mx-2 h-8 w-[calc(100%+1rem)] min-w-24 cursor-text rounded border-transparent bg-transparent px-2 py-0 text-sm font-[inherit] text-ink shadow-none placeholder:text-muted/40 hover:border-line focus:border-accent/50 focus:bg-surface focus:ring-2 focus:ring-accent/10; }
+      .tbl td.num input.cell { @apply min-w-20 text-right tabular-nums; }
+      .tbl td.name input.cell { @apply min-w-48 flex-1 font-medium; }
+      /* nom : la flèche « ouvrir la fiche » se loge à droite, dans le champ */
+      .tbl .name-edit { @apply relative flex w-full items-center; }
+      .tbl td.name .name-edit input.cell { @apply pr-9; }
+      .tbl .row-open { @apply absolute -right-1 top-1/2 grid size-6 -translate-y-1/2 cursor-pointer place-items-center rounded-full text-muted opacity-0 transition hover:bg-accent hover:text-accent-ink focus-visible:opacity-100; }
+      .tbl .row-open svg { @apply transition-transform; }
+      .tbl .row-open:hover svg { @apply translate-x-px; }
+      .tbl tbody tr:hover .row-open { @apply opacity-100; }
+      .tbl img { @apply h-9 w-auto max-w-12 rounded object-cover; }
+      .tbl th.sel, .tbl td.sel { @apply w-10 pr-0 pl-3 @5xl:pl-4; }
+      .tbl tbody tr[data-sel="1"] td { @apply bg-accent/[0.07]; }
+      /* champ sans habillage (à l'intérieur d'un conteneur déjà stylé) */
+      .bare { border: 0 !important; box-shadow: none !important; outline: none !important; background: transparent !important; border-radius: 0 !important; padding-left: 0 !important; padding-right: 0 !important; }
+
+      .toast { @apply pointer-events-none fixed bottom-5 left-1/2 z-50 flex -translate-x-1/2 translate-y-3 items-center gap-3 rounded-full bg-ink py-2 pr-2 pl-4 text-sm text-paper opacity-0 shadow-xl transition duration-300; }
+      .toast.show { @apply pointer-events-auto translate-y-0 opacity-100; }
+      .toast.lift { @apply bottom-20; }
+      #selbar button { @apply inline-flex cursor-pointer items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium transition hover:bg-paper/15; }
+
+      .toast button { @apply cursor-pointer rounded-full bg-paper/15 px-3 py-1 font-medium hover:bg-paper/25; }
+    }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+
+  <!-- Fiche (panneau latéral) -->
+  <div id="scrim" class="fixed inset-0 z-40 bg-black/30 opacity-0 transition-opacity duration-300 pointer-events-none"></div>
+  <aside id="drawer" class="invisible fixed inset-y-0 right-0 z-50 flex w-full translate-x-full flex-col border-l border-line bg-surface shadow-2xl transition-transform duration-300 ease-out sm:w-[480px]" aria-hidden="true"></aside>
+
+  <!-- Colonnes -->
+  <dialog id="dlg-columns" class="wide">
+    <form method="dialog">
+      <header class="flex items-center justify-between border-b border-line px-6 py-4">
+        <div><p class="eyebrow">Réglages</p><h2 class="text-lg font-medium">Colonnes</h2></div>
+        <button class="btn btn-quiet btn-icon" value="cancel" formnovalidate aria-label="Fermer">✕</button>
+      </header>
+      <div class="px-4 py-3">
+        <p class="px-2 pb-2 text-xs text-muted">Case cochée = visible dans le tableau. Toutes les colonnes sont exportées en CSV.</p>
+        <div id="col-list" class="flex flex-col"></div>
+      </div>
+      <div class="mx-6 mb-3 flex flex-wrap gap-2 rounded-lg border border-dashed border-line p-3">
+        <input id="new-col-label" class="min-w-0 flex-1" placeholder="Nouvelle colonne (ex. « Note /20 »)">
+        <select id="new-col-type"></select>
+        <button type="button" class="btn" id="btn-add-col">Ajouter</button>
+      </div>
+      <div class="px-6 pb-5" id="col-suggest-box">
+        <p class="pb-2 text-xs font-medium text-muted">Colonnes suggérées</p>
+        <div id="col-suggest" class="flex flex-wrap gap-1.5"></div>
+      </div>
+      <footer class="flex justify-end gap-2 border-t border-line px-6 py-4">
+        <button class="btn" value="cancel" formnovalidate>Annuler</button>
+        <button class="btn btn-primary" value="save">Enregistrer</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <!-- Import CSV -->
+  <dialog id="dlg-import">
+    <form method="dialog">
+      <header class="flex items-center justify-between border-b border-line px-6 py-4">
+        <div><p class="eyebrow">Import</p><h2 class="text-lg font-medium">Importer un CSV</h2></div>
+        <button class="btn btn-quiet btn-icon" value="cancel" formnovalidate aria-label="Fermer">✕</button>
+      </header>
+      <div class="flex flex-col gap-3 px-6 py-5 text-sm">
+        <p id="import-summary" class="font-medium"></p>
+        <label class="flex items-center gap-2"><input type="radio" name="import-mode" value="new" checked> Nouvelle collection</label>
+        <div class="ml-6 grid gap-3 sm:grid-cols-2" id="import-new-opts">
+          <label class="field"><span>Nom</span><input id="import-name"></label>
+          <label class="field"><span>Type</span><select id="import-type"></select></label>
+        </div>
+        <label class="flex items-center gap-2" id="import-append-label"><input type="radio" name="import-mode" value="append"> <span>Ajouter à la collection ouverte</span></label>
+        <label class="flex items-center gap-2" id="import-replace-label"><input type="radio" name="import-mode" value="replace"> <span>Remplacer le contenu de la collection ouverte</span></label>
+        <p id="import-cols" class="rounded-lg bg-paper p-3 text-xs leading-relaxed text-muted"></p>
+      </div>
+      <footer class="flex justify-end gap-2 border-t border-line px-6 py-4">
+        <button class="btn" value="cancel" formnovalidate>Annuler</button>
+        <button class="btn btn-primary" value="save">Importer</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <!-- Barre d'actions sur la sélection -->
+  <div id="selbar" class="fixed bottom-5 left-1/2 z-40 hidden max-w-[calc(100vw-1.5rem)] -translate-x-1/2 items-center gap-0.5 overflow-x-auto rounded-xl bg-ink p-1.5 text-paper shadow-2xl" role="toolbar" aria-label="Actions sur la sélection"></div>
+
+  <!-- Modification groupée -->
+  <dialog id="dlg-bulk">
+    <form method="dialog">
+      <header class="flex items-center justify-between border-b border-line px-6 py-4">
+        <div><p class="eyebrow" id="bulk-count"></p><h2 class="text-lg font-medium">Modifier la sélection</h2></div>
+        <button class="btn btn-quiet btn-icon" value="cancel" formnovalidate aria-label="Fermer">✕</button>
+      </header>
+      <div class="grid gap-4 px-6 py-5 sm:grid-cols-2">
+        <label class="field"><span>Colonne</span><select id="bulk-col"></select></label>
+        <label class="field"><span>Nouvelle valeur</span><input id="bulk-val" placeholder="Vide = effacer" autocomplete="off"></label>
+      </div>
+      <footer class="flex justify-end gap-2 border-t border-line px-6 py-4">
+        <button class="btn" value="cancel" formnovalidate>Annuler</button>
+        <button class="btn btn-primary" value="save">Appliquer</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <input type="file" id="file-input" accept=".csv,text/csv" hidden>
+  <input type="file" id="backup-input" accept=".json,application/json" hidden>
+  <input type="file" id="photo-input" accept="image/*" hidden>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script src="js/util.js"></script>
+  <script src="js/csv.js"></script>
+  <script src="js/fuzzy.js"></script>
+  <script src="js/store.js"></script>
+  <script src="js/types/registry.js"></script>
+  <script src="js/types/wine-appellations.js"></script>
+  <script src="js/types/wine.js"></script>
+  <script src="js/types/pokemon.js"></script>
+  <script src="js/types/generic.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
