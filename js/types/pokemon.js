@@ -3,6 +3,7 @@
   // TCGdex : API libre, gratuite, sans clé, avec prix Cardmarket (EUR)
   const BASE = 'https://api.tcgdex.net/v2';
   const API = `${BASE}/fr`;
+  const LANGS = ['fr', 'en', 'de', 'it', 'es', 'pt'];
 
   let setsPromise;
   const sets = () => (setsPromise ||= fetchJson(`${API}/sets`)
@@ -208,7 +209,14 @@
       },
       async refresh(item) {
         if (!item.tcgdex_id) return null;
-        const c = await fetchJson(`${API}/cards/${encodeURIComponent(item.tcgdex_id)}`);
+        // la cote Cardmarket est la même quelle que soit la langue (un produit = une cote) ;
+        // on interroge la langue de la carte pour ne pas échouer sur une carte absente en français
+        const lang = (item.langue || '').toLowerCase();
+        let c;
+        for (const l of [...new Set([lang, 'fr', 'en'])].filter((l) => LANGS.includes(l))) {
+          try { c = await fetchJson(`${BASE}/${l}/cards/${encodeURIComponent(item.tcgdex_id)}`); break; } catch (e) { /* langue suivante */ }
+        }
+        if (!c) return null;
         const p = price(c, item.variante);
         return p == null ? null : { valeur_actuelle: p };
       },
